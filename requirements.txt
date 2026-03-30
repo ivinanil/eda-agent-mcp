@@ -1,0 +1,7 @@
+anthropic
+mcp
+pandas
+numpy
+matplotlib
+seaborn
+python-dotenv
