@@ -1,6 +1,7 @@
 import sys
 import os
 import streamlit as st
+import streamlit.components.v1 as components
 import pandas as pd
 from datetime import datetime
 from dotenv import load_dotenv
@@ -105,7 +106,6 @@ if page == "Upload & Analyze":
 # ── PAGE 2: View Report ───────────────────────────────────
 elif page == "View Report":
     if "report" not in st.session_state:
-        # Try to load the most recent report from disk
         report_files = sorted(
             [f for f in os.listdir(".") if f.startswith("eda_report_") and f.endswith(".md")],
             reverse=True
@@ -120,7 +120,6 @@ elif page == "View Report":
 
     st.markdown("### AI-Generated EDA Report")
 
-    # Download button
     st.download_button(
         label="Download Report (.md)",
         data=st.session_state["report"],
@@ -143,7 +142,7 @@ elif page == "View Charts":
     chart_files = [
         os.path.join(charts_dir, f)
         for f in os.listdir(charts_dir)
-        if f.endswith(".png")
+        if f.endswith(".html")
     ]
 
     if not chart_files:
@@ -152,10 +151,11 @@ elif page == "View Charts":
 
     st.markdown(f"### Generated Charts ({len(chart_files)} total)")
 
-    # Display charts in a 2-column grid
+    # Display interactive Plotly charts in a 2-column grid
     cols = st.columns(2)
     for i, chart_path in enumerate(sorted(chart_files)):
-        chart_name = os.path.basename(chart_path).replace("_", " ").replace(".png", "").title()
+        chart_name = os.path.basename(chart_path).replace("_", " ").replace(".html", "").title()
         with cols[i % 2]:
             st.markdown(f"**{chart_name}**")
-            st.image(chart_path, use_container_width=True)
+            with open(chart_path, "r", encoding="utf-8") as f:
+                components.html(f.read(), height=450, scrolling=False)
