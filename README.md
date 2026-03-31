@@ -13,12 +13,12 @@ python mcp_client.py --file data/Car_Prices_Poland.csv
 ```
 
 ```
-✅ MCP server connected
-🔧 Tools available: ['run_full_eda_pipeline', 'get_quick_stats', 'generate_charts_only']
+MCP server connected
+Tools available: ['run_full_eda_pipeline', 'get_quick_stats', 'generate_charts_only']
 --- Agent turn 1 --- Claude calling: get_quick_stats
 --- Agent turn 2 --- Claude calling: run_full_eda_pipeline
 --- Agent turn 3 --- Analysis complete!
-✅ Report saved: eda_report_20260330_155519.md
+Report saved: eda_report_20260330_155519.md
 ```
 
 Or launch the web app:
@@ -35,7 +35,7 @@ Upload any CSV file and the agent autonomously:
 
 1. Loads and profiles the dataset using pandas
 2. Computes statistics — distributions, correlations, missing values, outliers
-3. Generates 6 professional visualizations (heatmaps, histograms, bar charts)
+3. Generates interactive visualizations (heatmaps, histograms, bar charts)
 4. Sends everything to Claude AI which writes a structured, insight-driven report
 5. Saves the full report as a markdown file ready to share
 
@@ -71,7 +71,7 @@ Claude orchestrates the entire workflow on its own — deciding when to get quic
 | AI model | Claude claude-sonnet-4-6 (Anthropic) |
 | Agent protocol | Model Context Protocol (MCP) |
 | Data analysis | pandas, numpy |
-| Visualizations | matplotlib, seaborn |
+| Visualizations | plotly |
 | Web interface | Streamlit |
 | Language | Python 3.10+ |
 
@@ -82,14 +82,17 @@ Claude orchestrates the entire workflow on its own — deciding when to get quic
 ```
 eda-agent-mcp/
 ├── eda_engine.py       # Pandas EDA logic — stats, correlations, missing values
-├── charts.py           # Auto-generates 6 visualization charts
+├── charts.py           # Auto-generates interactive Plotly visualizations
 ├── agent.py            # Claude API integration + report generation
 ├── mcp_server.py       # MCP server exposing EDA tools to Claude
 ├── mcp_client.py       # Agentic loop — Claude calls tools autonomously
 ├── app.py              # Streamlit web interface
 ├── data/               # Place your CSV datasets here
+├── setup.sh            # First-time setup (Mac/Linux)
+├── setup.bat           # First-time setup (Windows)
+├── run.sh              # Launch the web app (Mac/Linux)
+├── run.bat             # Launch the web app (Windows)
 ├── requirements.txt
-├── .gitignore
 └── README.md
 ```
 
@@ -100,50 +103,46 @@ eda-agent-mcp/
 ### 1. Clone the repository
 
 ```bash
-git clone https://github.com/nickt15692/eda-agent-mcp.git
+git clone https://github.com/ivinanil/eda-agent-mcp.git
 cd eda-agent-mcp
 ```
 
-### 2. Install Python 3.10+
+### 2. Run setup
 
-The `mcp` package requires Python 3.10 or newer.
-
-- **Mac**: `brew install python@3.11` (install Homebrew first from [brew.sh](https://brew.sh) if needed)
-- **Windows**: Download from [python.org](https://www.python.org/downloads/) — check "Add Python to PATH" during install
-
-### 3. Create a virtual environment
-
-**Mac:**
+**Mac/Linux:**
 ```bash
-python3.11 -m venv .venv
-source .venv/bin/activate
+chmod +x setup.sh
+./setup.sh
 ```
 
 **Windows:**
-```bash
-python -m venv .venv
-.venv\Scripts\activate
+```
+setup.bat
 ```
 
-### 4. Install dependencies
+This will:
+- Create a `.venv` virtual environment
+- Install all dependencies
+- Create a `.env` placeholder file
+- Create the `data/` folder
 
-```bash
-pip install -r requirements.txt streamlit
-```
+> Safe to run more than once — skips steps already done.
 
-### 5. Set up your API key
+### 3. Add your API key
 
-Create a `.env` file in the project root:
+Open `.env` and replace the placeholder with your real key:
 
 ```
 ANTHROPIC_API_KEY=sk-ant-your-key-here
 ```
 
-Get your API key from [console.anthropic.com](https://console.anthropic.com).
+Get your key from [console.anthropic.com](https://console.anthropic.com).
 
-### 6. Add your dataset
+### 4. Add your dataset
 
 Place any CSV file inside the `data/` folder.
+
+> Files must be inside `data/` and under 100 MB.
 
 ---
 
@@ -151,9 +150,9 @@ Place any CSV file inside the `data/` folder.
 
 ### Option A — One-click launch (recommended)
 
-**Mac:** double-click `run.sh` (or run `./run.sh` in terminal)
+**Mac/Linux:** `./run.sh`
 
-**Windows:** double-click `run.bat`
+**Windows:** `run.bat`
 
 Opens at `http://localhost:8501`. Upload a CSV, click Analyze, watch the report generate live.
 
@@ -167,12 +166,6 @@ Claude autonomously calls tools and generates the full report.
 
 ### Option C — Direct pipeline (fastest)
 
-**Mac/Linux:**
-```bash
-python -c "from agent import run_full_pipeline; run_full_pipeline('data/your_file.csv')"
-```
-
-**Windows:**
 ```bash
 python -c "from agent import run_full_pipeline; run_full_pipeline('data/your_file.csv')"
 ```
@@ -184,12 +177,10 @@ python -c "from agent import run_full_pipeline; run_full_pipeline('data/your_fil
 Running on `Car_Prices_Poland.csv` (117,927 rows):
 
 **Charts generated:**
-- `charts/missing_values.png` — missing data heatmap
-- `charts/distributions.png` — numeric column distributions
-- `charts/correlation_heatmap.png` — feature correlation matrix
-- `charts/categorical_mark.png` — car brand breakdown
-- `charts/categorical_model.png` — model distribution
-- `charts/categorical_generation_name.png` — generation analysis
+- `charts/missing_values.html` — missing data by column
+- `charts/dist_*.html` — numeric column distributions
+- `charts/correlation_heatmap.html` — feature correlation matrix
+- `charts/categorical_*.html` — top value counts per categorical column
 
 **Report sections:**
 1. Dataset overview
@@ -212,25 +203,6 @@ Running on `Car_Prices_Poland.csv` (117,927 rows):
 
 ---
 
-## Team
-
-| Member | Responsibility |
-|---|---|
-| Person 1 | EDA engine (`eda_engine.py`) + chart generation (`charts.py`) |
-| Person 2 | Claude API integration + prompt engineering (`agent.py`) |
-| Person 3 | MCP server + agentic client + CLI (`mcp_server.py`, `mcp_client.py`) |
-
----
-
-## What we learned
-
-- **MCP architecture** — how to expose Python functions as tools that an AI agent can discover and call autonomously
-- **Agentic loops** — how Claude decides which tools to use, in what order, and when to stop
-- **Prompt engineering** — how system prompt design directly affects report quality and structure
-- **Production AI patterns** — handling encoding issues, subprocess communication, async event loops on Windows
-
----
-
 ## Requirements
 
 ```
@@ -240,8 +212,9 @@ pandas
 numpy
 matplotlib
 seaborn
-python-dotenv
+plotly
 streamlit
+python-dotenv
 ```
 
 ---
