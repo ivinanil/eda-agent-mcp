@@ -68,7 +68,7 @@ Claude orchestrates the entire workflow on its own — deciding when to get quic
 
 | Layer | Technology |
 |---|---|
-| AI model | Claude claude-sonnet-4-20250514 (Anthropic) |
+| AI model | Claude claude-sonnet-4-6 (Anthropic) |
 | Agent protocol | Model Context Protocol (MCP) |
 | Data analysis | pandas, numpy |
 | Visualizations | matplotlib, seaborn |
@@ -100,29 +100,38 @@ eda-agent-mcp/
 ### 1. Clone the repository
 
 ```bash
-git clone https://github.com/YOURUSERNAME/eda-agent-mcp.git
+git clone https://github.com/nickt15692/eda-agent-mcp.git
 cd eda-agent-mcp
 ```
 
-### 2. Create a virtual environment
+### 2. Install Python 3.10+
 
+The `mcp` package requires Python 3.10 or newer.
+
+- **Mac**: `brew install python@3.11` (install Homebrew first from [brew.sh](https://brew.sh) if needed)
+- **Windows**: Download from [python.org](https://www.python.org/downloads/) — check "Add Python to PATH" during install
+
+### 3. Create a virtual environment
+
+**Mac:**
+```bash
+python3.11 -m venv .venv
+source .venv/bin/activate
+```
+
+**Windows:**
 ```bash
 python -m venv .venv
-
-# Mac/Linux
-source .venv/bin/activate
-
-# Windows
 .venv\Scripts\activate
 ```
 
-### 3. Install dependencies
+### 4. Install dependencies
 
 ```bash
-pip install -r requirements.txt
+pip install -r requirements.txt streamlit
 ```
 
-### 4. Set up your API key
+### 5. Set up your API key
 
 Create a `.env` file in the project root:
 
@@ -132,7 +141,7 @@ ANTHROPIC_API_KEY=sk-ant-your-key-here
 
 Get your API key from [console.anthropic.com](https://console.anthropic.com).
 
-### 5. Add your dataset
+### 6. Add your dataset
 
 Place any CSV file inside the `data/` folder.
 
@@ -140,11 +149,11 @@ Place any CSV file inside the `data/` folder.
 
 ## Running the project
 
-### Option A — Web app (recommended for demo)
+### Option A — One-click launch (recommended)
 
-```bash
-streamlit run app.py
-```
+**Mac:** double-click `run.sh` (or run `./run.sh` in terminal)
+
+**Windows:** double-click `run.bat`
 
 Opens at `http://localhost:8501`. Upload a CSV, click Analyze, watch the report generate live.
 
@@ -158,6 +167,12 @@ Claude autonomously calls tools and generates the full report.
 
 ### Option C — Direct pipeline (fastest)
 
+**Mac/Linux:**
+```bash
+python -c "from agent import run_full_pipeline; run_full_pipeline('data/your_file.csv')"
+```
+
+**Windows:**
 ```bash
 python -c "from agent import run_full_pipeline; run_full_pipeline('data/your_file.csv')"
 ```
