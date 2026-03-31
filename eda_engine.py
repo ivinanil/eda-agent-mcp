@@ -23,8 +23,8 @@ def convert_types(obj):
     return obj
 
 
-def run_eda(filepath: str) -> dict:
-    df = pd.read_csv(filepath)
+def run_eda(source) -> dict:
+    df = pd.read_csv(source) if isinstance(source, str) else source
 
     # --- 1. SHAPE INFO ---
     shape_info = {

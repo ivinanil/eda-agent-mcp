@@ -1,3 +1,4 @@
+import sys
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
@@ -8,15 +9,19 @@ import os
 plt.style.use("seaborn-v0_8-whitegrid")
 COLORS = sns.color_palette("husl", 10)
 
+def log(msg: str):
+    sys.stderr.write(f"{msg}\n")
+    sys.stderr.flush()
 
-def generate_charts(filepath: str, output_dir: str = "charts") -> list[str]:
+
+def generate_charts(source, output_dir: str = "charts") -> list[str]:
     """
     Generates a set of EDA charts for a CSV file.
     Saves them as PNG files and returns the list of file paths.
     These paths get embedded in the final markdown report.
     """
     os.makedirs(output_dir, exist_ok=True)
-    df = pd.read_csv(filepath)
+    df = pd.read_csv(source) if isinstance(source, str) else source
     numeric_cols = df.select_dtypes(include=np.number).columns.tolist()
     categorical_cols = df.select_dtypes(include="object").columns.tolist()
     saved_charts = []
@@ -40,7 +45,7 @@ def generate_charts(filepath: str, output_dir: str = "charts") -> list[str]:
         plt.savefig(path, dpi=150)
         plt.close()
         saved_charts.append(path)
-        print(f"  ✅ Saved: {path}")
+        log(f"  ✅ Saved: {path}")
 
     # --- CHART 2: NUMERIC DISTRIBUTIONS ---
     # Histograms for every numeric column, shown in a grid.
@@ -75,7 +80,7 @@ def generate_charts(filepath: str, output_dir: str = "charts") -> list[str]:
         plt.savefig(path, dpi=150, bbox_inches="tight")
         plt.close()
         saved_charts.append(path)
-        print(f"  ✅ Saved: {path}")
+        log(f"  ✅ Saved: {path}")
 
     # --- CHART 3: CORRELATION HEATMAP ---
     # The most important chart for ML feature selection.
@@ -121,7 +126,7 @@ def generate_charts(filepath: str, output_dir: str = "charts") -> list[str]:
         plt.savefig(path, dpi=150)
         plt.close()
         saved_charts.append(path)
-        print(f"  ✅ Saved: {path}")
+        log(f"  ✅ Saved: {path}")
 
-    print(f"\n📊 {len(saved_charts)} charts generated in '{output_dir}/'")
+    log(f"\n📊 {len(saved_charts)} charts generated in '{output_dir}/'")
     return saved_charts

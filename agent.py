@@ -4,6 +4,7 @@ load_dotenv()
 import anthropic
 import json
 from datetime import datetime
+import pandas as pd
 from eda_engine import run_eda
 from charts import generate_charts
 import sys
@@ -76,12 +77,15 @@ Generate the complete report now.
 """
 
     log("🤖 Sending stats to Claude...")
-    response = client.messages.create(
-        model="claude-sonnet-4-20250514",
-        max_tokens=4096,
-        system=SYSTEM_PROMPT,
-        messages=[{"role": "user", "content": user_message}]
-    )
+    try:
+        response = client.messages.create(
+            model="claude-sonnet-4-6",
+            max_tokens=4096,
+            system=SYSTEM_PROMPT,
+            messages=[{"role": "user", "content": user_message}]
+        )
+    except Exception as e:
+        raise RuntimeError(f"Claude API call failed: {e}") from e
 
     return response.content[0].text
 
@@ -119,13 +123,14 @@ def run_full_pipeline(csv_path: str):
     This function is what Person 3's MCP server will call.
     """
     log(f"\n📂 Loading dataset: {csv_path}")
+    df = pd.read_csv(csv_path)
 
     log("📊 Running EDA engine...")
-    eda_stats = run_eda(csv_path)
+    eda_stats = run_eda(df)
     log(f"   → {eda_stats['shape']['rows']} rows, {eda_stats['shape']['columns']} columns")
 
     log("🎨 Generating charts...")
-    chart_paths = generate_charts(csv_path)
+    chart_paths = generate_charts(df)
 
     log("🤖 Generating AI report...")
     report = generate_report(eda_stats, chart_paths, csv_path)

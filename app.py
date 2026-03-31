@@ -25,7 +25,7 @@ st.markdown("""
 # Sidebar navigation
 with st.sidebar:
     st.markdown("### Navigation")
-    page = st.radio("", ["Upload & Analyze", "View Report", "View Charts"], label_visibility="collapsed")
+    page = st.radio("Navigation", ["Upload & Analyze", "View Report", "View Charts"], label_visibility="collapsed")
     st.markdown("---")
     st.markdown("### About")
     st.caption("This agent uses Claude AI via MCP to automatically analyze any CSV dataset and generate a professional EDA report.")
@@ -67,17 +67,24 @@ if page == "Upload & Analyze":
 
                 st.write("Loading dataset and computing statistics...")
                 from eda_engine import run_eda
-                eda_stats = run_eda(filepath)
+                eda_stats = run_eda(df)
                 st.write(f"✅ EDA complete — {eda_stats['shape']['rows']:,} rows analyzed")
 
                 st.write("Generating charts...")
+                import shutil
+                if os.path.exists("charts"):
+                    shutil.rmtree("charts")
                 from charts import generate_charts
-                chart_paths = generate_charts(filepath)
+                chart_paths = generate_charts(df)
                 st.write(f"✅ {len(chart_paths)} charts generated")
 
                 st.write("Sending to Claude AI for report generation...")
                 from agent import generate_report, save_report
-                report = generate_report(eda_stats, chart_paths, uploaded_file.name)
+                try:
+                    report = generate_report(eda_stats, chart_paths, uploaded_file.name)
+                except RuntimeError as e:
+                    st.error(f"Report generation failed: {e}")
+                    st.stop()
                 output_path = save_report(report, uploaded_file.name)
                 st.write("✅ AI report generated and saved")
 

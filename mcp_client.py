@@ -71,7 +71,7 @@ async def run_agent(csv_filepath: str):
                 log(f"--- Agent turn {turn} ---")
 
                 response = client.messages.create(
-                    model="claude-sonnet-4-20250514",
+                    model="claude-sonnet-4-6",
                     max_tokens=4096,
                     system=AGENT_SYSTEM_PROMPT,
                     tools=tools,
