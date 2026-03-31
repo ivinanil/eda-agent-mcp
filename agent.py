@@ -3,23 +3,21 @@ load_dotenv()
 
 import anthropic
 import json
+import os
 from datetime import datetime
 import pandas as pd
 from eda_engine import run_eda
 from charts import generate_charts
 import sys
 
+MODEL = os.getenv("ANTHROPIC_MODEL", "claude-sonnet-4-6")
+MAX_FILE_SIZE_MB = 100
+
 def log(msg):
     sys.stderr.write(f"{msg}\n")
     sys.stderr.flush()
 
 client = anthropic.Anthropic()
-
-# --- THE SYSTEM PROMPT ---
-# This is the most important part of Person 2's work.
-# It tells Claude exactly what role to play, what sections to produce,
-# and how to format the output. Good prompt = good report.
-# Think of this like writing a job description for Claude.
 
 SYSTEM_PROMPT = """
 You are a senior data scientist writing a professional EDA report for a business audience.
@@ -32,7 +30,7 @@ You will receive a JSON summary of a dataset's statistics. Your job is to:
 
 Structure your report with exactly these sections:
 ## 1. Dataset Overview
-## 2. Data Quality Assessment  
+## 2. Data Quality Assessment
 ## 3. Key Statistical Insights
 ## 4. Correlation Analysis
 ## 5. Categorical Variable Analysis
@@ -44,30 +42,52 @@ Rules:
 - Use markdown tables where comparisons are clearer in tabular form
 - Flag any column with >5% missing values as HIGH PRIORITY
 - Flag any correlation above 0.7 as potentially multicollinear
-- Be specific — "column X has 23% missing values which will require imputation" 
+- Be specific — "column X has 23% missing values which will require imputation"
   not "some columns have missing values"
 - Keep the tone professional but accessible
 """
 
 
-def generate_report(eda_stats: dict, chart_paths: list, filename: str) -> str:
+def validate_csv_path(csv_path: str, allowed_dir: str = None) -> str:
     """
-    Sends EDA stats to Claude and gets back a full markdown report.
-    We include chart_paths in the message so Claude knows which
-    charts exist and can reference them with proper markdown image tags.
+    Validates that a file path is safe to read:
+    - Must exist and be a file
+    - Must be within the allowed directory (defaults to project root/data)
+    - Must be under the file size limit
+    - Must be a .csv file
     """
+    if allowed_dir is None:
+        allowed_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data")
 
-    # Build the chart references section
-    # This tells Claude "these charts exist, embed them in the right sections"
+    real_path = os.path.realpath(os.path.abspath(csv_path))
+    real_allowed = os.path.realpath(os.path.abspath(allowed_dir))
+
+    if not real_path.startswith(real_allowed + os.sep) and real_path != real_allowed:
+        raise ValueError(f"Access denied: file must be inside '{allowed_dir}'")
+
+    if not os.path.isfile(real_path):
+        raise FileNotFoundError(f"File not found: {csv_path}")
+
+    if not real_path.lower().endswith(".csv"):
+        raise ValueError(f"Only .csv files are supported")
+
+    size_mb = os.path.getsize(real_path) / (1024 * 1024)
+    if size_mb > MAX_FILE_SIZE_MB:
+        raise ValueError(f"File too large: {size_mb:.1f} MB (limit: {MAX_FILE_SIZE_MB} MB)")
+
+    return real_path
+
+
+def generate_report(eda_stats: dict, chart_paths: list, filename: str) -> str:
     chart_refs = ""
     if chart_paths:
         chart_refs = "\n\nThe following charts have been generated and saved:\n"
         for path in chart_paths:
-            chart_refs += f"- {path}\n"
+            chart_refs += f"- {os.path.basename(path)}\n"
         chart_refs += "\nEmbed these charts at the appropriate sections using markdown: ![Chart Title](path)"
 
     user_message = f"""
-Please generate a full EDA report for the dataset: '{filename}'
+Please generate a full EDA report for the dataset: '{os.path.basename(filename)}'
 
 Here are the computed statistics:
 {json.dumps(eda_stats, indent=2)}
@@ -76,30 +96,30 @@ Here are the computed statistics:
 Generate the complete report now.
 """
 
-    log("🤖 Sending stats to Claude...")
+    log("Sending stats to Claude...")
     try:
         response = client.messages.create(
-            model="claude-sonnet-4-6",
+            model=MODEL,
             max_tokens=4096,
             system=SYSTEM_PROMPT,
             messages=[{"role": "user", "content": user_message}]
         )
-    except Exception as e:
-        raise RuntimeError(f"Claude API call failed: {e}") from e
+    except anthropic.APIConnectionError as e:
+        raise RuntimeError(f"Could not connect to Claude API: {e}") from e
+    except anthropic.APIStatusError as e:
+        raise RuntimeError(f"Claude API error {e.status_code}: {e.message}") from e
+
+    if not response.content or not hasattr(response.content[0], "text"):
+        raise RuntimeError("Claude returned an empty or unexpected response")
 
     return response.content[0].text
 
 
 def save_report(report: str, filename: str) -> str:
-    """
-    Saves the report as a markdown file with a timestamp.
-    The timestamp ensures you don't overwrite previous runs —
-    useful when testing on multiple datasets.
-    """
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     output_path = f"eda_report_{timestamp}.md"
 
-    header = f"""# EDA Report: {filename}
+    header = f"""# EDA Report: {os.path.basename(filename)}
 *Generated automatically by EDA Agent on {datetime.now().strftime('%B %d, %Y at %H:%M')}*
 
 ---
@@ -108,34 +128,35 @@ def save_report(report: str, filename: str) -> str:
     with open(output_path, "w", encoding="utf-8") as f:
         f.write(header + report)
 
-    log(f"✅ Report saved: {output_path}")
+    log(f"Report saved: {output_path}")
     return output_path
 
 
 def run_full_pipeline(csv_path: str):
-    """
-    Orchestrates the full pipeline:
-    Step 1 → Run EDA (Person 1's code)
-    Step 2 → Generate charts (Person 1's code)
-    Step 3 → Send to Claude, get report (Person 2's code)
-    Step 4 → Save report to file (Person 2's code)
+    log(f"\nLoading dataset: {csv_path}")
+    validated_path = validate_csv_path(csv_path)
 
-    This function is what Person 3's MCP server will call.
-    """
-    log(f"\n📂 Loading dataset: {csv_path}")
-    df = pd.read_csv(csv_path)
+    try:
+        df = pd.read_csv(validated_path)
+    except pd.errors.ParserError as e:
+        raise ValueError(f"Failed to parse CSV file: {e}") from e
+    except pd.errors.EmptyDataError:
+        raise ValueError("The CSV file is empty")
 
-    log("📊 Running EDA engine...")
+    if df.empty:
+        raise ValueError("The CSV file contains no data rows")
+
+    log("Running EDA engine...")
     eda_stats = run_eda(df)
-    log(f"   → {eda_stats['shape']['rows']} rows, {eda_stats['shape']['columns']} columns")
+    log(f"   -> {eda_stats['shape']['rows']} rows, {eda_stats['shape']['columns']} columns")
 
-    log("🎨 Generating charts...")
+    log("Generating charts...")
     chart_paths = generate_charts(df)
 
-    log("🤖 Generating AI report...")
+    log("Generating AI report...")
     report = generate_report(eda_stats, chart_paths, csv_path)
 
-    log("💾 Saving report...")
+    log("Saving report...")
     output_path = save_report(report, csv_path)
 
     return output_path
@@ -143,5 +164,5 @@ def run_full_pipeline(csv_path: str):
 
 if __name__ == "__main__":
     import sys
-    csv_path = sys.argv[1] if len(sys.argv) > 1 else "Car_Purchasing_Data.csv"
+    csv_path = sys.argv[1] if len(sys.argv) > 1 else "data/Car_Purchasing_Data.csv"
     run_full_pipeline(csv_path)

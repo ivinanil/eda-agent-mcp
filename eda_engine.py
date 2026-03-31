@@ -24,7 +24,20 @@ def convert_types(obj):
 
 
 def run_eda(source) -> dict:
-    df = pd.read_csv(source) if isinstance(source, str) else source
+    if isinstance(source, str):
+        try:
+            df = pd.read_csv(source)
+        except pd.errors.ParserError as e:
+            raise ValueError(f"Failed to parse CSV: {e}") from e
+        except pd.errors.EmptyDataError:
+            raise ValueError("The CSV file is empty")
+    elif isinstance(source, pd.DataFrame):
+        df = source
+    else:
+        raise TypeError(f"Expected a file path or DataFrame, got {type(source)}")
+
+    if df.empty:
+        raise ValueError("Dataset contains no rows")
 
     # --- 1. SHAPE INFO ---
     shape_info = {
@@ -50,9 +63,11 @@ def run_eda(source) -> dict:
 
     for col in numeric_cols:
         series = df[col].dropna()
+        if series.empty:
+            continue
         mean = series.mean()
         std = series.std()
-        outliers = int(((series - mean).abs() > 3 * std).sum())
+        outliers = int(((series - mean).abs() > 3 * std).sum()) if std > 0 else 0
 
         numeric_stats[col] = {
             "mean": round(mean, 4),
@@ -83,11 +98,13 @@ def run_eda(source) -> dict:
         corr_matrix = df[numeric_cols].corr()
         for i in range(len(numeric_cols)):
             for j in range(i + 1, len(numeric_cols)):
-                correlations.append({
-                    "col_a": numeric_cols[i],
-                    "col_b": numeric_cols[j],
-                    "correlation": round(corr_matrix.iloc[i, j], 4)
-                })
+                val = corr_matrix.iloc[i, j]
+                if pd.notna(val):
+                    correlations.append({
+                        "col_a": numeric_cols[i],
+                        "col_b": numeric_cols[j],
+                        "correlation": round(val, 4)
+                    })
         correlations = sorted(
             correlations,
             key=lambda x: abs(x["correlation"]),
@@ -97,7 +114,6 @@ def run_eda(source) -> dict:
     # --- 6. DUPLICATES ---
     duplicate_count = int(df.duplicated().sum())
 
-    # --- FINAL OUTPUT ---
     result = {
         "shape": shape_info,
         "missing_values": missing_info,

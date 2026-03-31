@@ -9,9 +9,10 @@ sys.stderr.reconfigure(encoding="utf-8")
 from mcp.server import Server
 from mcp.server.stdio import stdio_server
 from mcp import types
-from agent import run_full_pipeline
+from agent import run_full_pipeline, validate_csv_path
 from eda_engine import run_eda
 from charts import generate_charts
+import pandas as pd
 
 server = Server("eda-agent")
 
@@ -42,7 +43,7 @@ async def list_tools() -> list[types.Tool]:
                 "properties": {
                     "filepath": {
                         "type": "string",
-                        "description": "Path to the CSV file to analyze"
+                        "description": "Path to the CSV file to analyze (must be inside the data/ directory)"
                     }
                 },
                 "required": ["filepath"]
@@ -60,7 +61,7 @@ async def list_tools() -> list[types.Tool]:
                 "properties": {
                     "filepath": {
                         "type": "string",
-                        "description": "Path to the CSV file"
+                        "description": "Path to the CSV file (must be inside the data/ directory)"
                     }
                 },
                 "required": ["filepath"]
@@ -78,7 +79,7 @@ async def list_tools() -> list[types.Tool]:
                 "properties": {
                     "filepath": {
                         "type": "string",
-                        "description": "Path to the CSV file"
+                        "description": "Path to the CSV file (must be inside the data/ directory)"
                     },
                     "output_dir": {
                         "type": "string",
@@ -106,7 +107,14 @@ async def call_tool(name: str, arguments: dict):
         elif name == "get_quick_stats":
             filepath = arguments["filepath"]
             log(f"MCP: Getting quick stats for {filepath}")
-            stats = run_eda(filepath)
+            validated = validate_csv_path(filepath)
+            try:
+                df = pd.read_csv(validated)
+            except pd.errors.ParserError as e:
+                raise ValueError(f"Failed to parse CSV: {e}") from e
+            except pd.errors.EmptyDataError:
+                raise ValueError("The CSV file is empty")
+            stats = run_eda(df)
             return [types.TextContent(
                 type="text",
                 text=json.dumps(stats, indent=2)
@@ -116,7 +124,14 @@ async def call_tool(name: str, arguments: dict):
             filepath = arguments["filepath"]
             output_dir = arguments.get("output_dir", "charts")
             log(f"MCP: Generating charts for {filepath}")
-            chart_paths = generate_charts(filepath, output_dir)
+            validated = validate_csv_path(filepath)
+            try:
+                df = pd.read_csv(validated)
+            except pd.errors.ParserError as e:
+                raise ValueError(f"Failed to parse CSV: {e}") from e
+            except pd.errors.EmptyDataError:
+                raise ValueError("The CSV file is empty")
+            chart_paths = generate_charts(df, output_dir)
             return [types.TextContent(
                 type="text",
                 text="Charts generated:\n" + "\n".join(chart_paths)
@@ -128,8 +143,14 @@ async def call_tool(name: str, arguments: dict):
                 text=f"Unknown tool: {name}"
             )]
 
-    except Exception as e:
-        log(f"Error in {name}: {e}")
+    except (ValueError, FileNotFoundError) as e:
+        log(f"Input error in {name}: {e}")
+        return [types.TextContent(
+            type="text",
+            text=f"Error: {str(e)}"
+        )]
+    except RuntimeError as e:
+        log(f"Runtime error in {name}: {e}")
         return [types.TextContent(
             type="text",
             text=f"Error running {name}: {str(e)}"

@@ -8,6 +8,8 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
+MAX_FILE_SIZE_MB = 100
+
 # Page config
 st.set_page_config(
     page_title="EDA Agent",
@@ -40,14 +42,33 @@ if page == "Upload & Analyze":
     )
 
     if uploaded_file:
-        # Save uploaded file to data/ folder
+        # Enforce file size limit
+        file_bytes = uploaded_file.getbuffer()
+        size_mb = len(file_bytes) / (1024 * 1024)
+        if size_mb > MAX_FILE_SIZE_MB:
+            st.error(f"File too large: {size_mb:.1f} MB (limit: {MAX_FILE_SIZE_MB} MB)")
+            st.stop()
+
+        # Save uploaded file to data/ folder (sanitise filename)
         os.makedirs("data", exist_ok=True)
-        filepath = f"data/{uploaded_file.name}"
+        safe_name = os.path.basename(uploaded_file.name)
+        filepath = os.path.join("data", safe_name)
         with open(filepath, "wb") as f:
-            f.write(uploaded_file.getbuffer())
+            f.write(file_bytes)
 
         # Show preview
-        df = pd.read_csv(filepath)
+        try:
+            df = pd.read_csv(filepath)
+        except pd.errors.ParserError:
+            st.error("Could not parse the uploaded file. Please upload a valid CSV.")
+            st.stop()
+        except pd.errors.EmptyDataError:
+            st.error("The uploaded CSV file is empty.")
+            st.stop()
+
+        if df.empty:
+            st.error("The CSV file contains no data rows.")
+            st.stop()
         st.markdown("### Dataset Preview")
 
         # Metric cards
@@ -106,12 +127,18 @@ if page == "Upload & Analyze":
 # ── PAGE 2: View Report ───────────────────────────────────
 elif page == "View Report":
     if "report" not in st.session_state:
+        base_dir = os.path.dirname(os.path.abspath(__file__))
         report_files = sorted(
-            [f for f in os.listdir(".") if f.startswith("eda_report_") and f.endswith(".md")],
+            [
+                f for f in os.listdir(base_dir)
+                if f.startswith("eda_report_") and f.endswith(".md")
+                and os.path.isfile(os.path.join(base_dir, f))
+            ],
             reverse=True
         )
         if report_files:
-            with open(report_files[0], "r", encoding="utf-8") as f:
+            report_path = os.path.join(base_dir, report_files[0])
+            with open(report_path, "r", encoding="utf-8") as f:
                 st.session_state["report"] = f.read()
                 st.session_state["output_path"] = report_files[0]
         else:
